@@ -9,6 +9,12 @@ db.init_app(app)
 @app.before_request
 def create_tables():
     db.create_all()
+    # Dados de exemplo (opcional)
+    if not Rota.query.first():
+        rota1 = Rota(nome="Rota A")
+        rota2 = Rota(nome="Rota B")
+        db.session.add_all([rota1, rota2])
+        db.session.commit()
 
 @app.route('/')
 def index():
@@ -25,25 +31,40 @@ def index():
 
 @app.route('/add', methods=['POST'])
 def add_passageiro():
-    nome = request.form['nome']
-    documento = request.form['documento']
+    nome = request.form['nome'].strip()
+    documento = request.form['documento'].strip()
     status = request.form['status']
     rota_id = request.form['rota_id']
+
+    # Verifica duplicidade
+    duplicado = Passageiro.query.filter_by(nome=nome, documento=documento).first()
+    if duplicado:
+        return "Passageiro já cadastrado com este nome e documento.", 400
+
+    # Verifica se a rota existe
+    rota = Rota.query.get(rota_id)
+    if not rota:
+        return "Rota não encontrada", 404
+
     novo = Passageiro(nome=nome, documento=documento, status=status, rota_id=rota_id)
     db.session.add(novo)
     db.session.commit()
     return redirect('/')
 
+
 @app.route('/update/<int:id>', methods=['POST'])
 def update_passageiro(id):
-    passageiro = Passageiro.query.get(id)
-    passageiro.status = request.form['status']
+    passageiro = Passageiro.query.get_or_404(id)
+    status = request.form['status']
+    if status not in ['Embarcado', 'Em rota', 'Desembarcado']:
+        return "Status inválido", 400
+    passageiro.status = status
     db.session.commit()
     return redirect('/')
 
 @app.route('/delete/<int:id>')
 def delete_passageiro(id):
-    passageiro = Passageiro.query.get(id)
+    passageiro = Passageiro.query.get_or_404(id)
     db.session.delete(passageiro)
     db.session.commit()
     return redirect('/')
